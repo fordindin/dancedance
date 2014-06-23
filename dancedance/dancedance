@@ -1,0 +1,93 @@
+#!/usr/bin/env python
+
+from subprocess import Popen, PIPE, STDOUT
+import sys
+import os
+import re
+
+lexmap = (
+		(">","push-break"),
+		("<","slingshot"),
+		(".","starter-step"),
+		(",","tuck-turn"),
+		("+","underarm"),
+		("-","duck"),
+		("[","free-spin"),
+		("]","whip"),
+		)
+invlexmap = [ (i[1],i[0]) for i in lexmap ]
+
+b2d_map = {}
+d2b_map = {}
+b2d_map.update(lexmap)
+d2b_map.update(invlexmap)
+
+def init(build=True):
+		build_dir = os.path.join(
+						os.path.dirname(
+								os.path.dirname(
+										os.path.realpath(sys.argv[0]
+												)
+										)
+								), "build"
+						)
+		if build:
+				try:
+						os.mkdir(build_dir)
+				except OSError:
+						pass
+				os.chdir(build_dir)
+				Popen("cmake ..", shell=True)
+				Popen("make", shell=True)
+		return os.path.join( build_dir, "brainfuck" )
+
+def b2d(indata):
+		return filter(
+						lambda a: True if a else False,
+						[ b2d_map[c] if c in b2d_map.keys() else False for c in indata])
+
+def d2b(indata):
+		lex_RE = re.compile(".*?(%s).*" %  "|".join(d2b_map.keys()))
+		out = []
+		while lex_RE.match(indata):
+				m = lex_RE.match(indata).groups()[0]
+				out.append(d2b_map[m])
+				i = indata.index(m)
+				indata = indata[i+len(m):]
+		return out
+
+
+if __name__ == '__main__':
+		build = False
+		if len(sys.argv) > 1 and sys.argv[1] == 'init':
+				build = True
+		brainfuck = init(build=build)
+		if not os.path.exists(brainfuck):
+				brainfuck = init()
+		if len(sys.argv) > 1 and sys.argv[1] == 'd2b':
+				fd = open(sys.argv[2])
+				data = fd.read()
+				print  "".join(d2b(data))
+				fd.close()
+				sys.exit(0)
+		if len(sys.argv) > 1 and sys.argv[1] == 'b2d':
+				fd = open(sys.argv[2])
+				print  " ".join(b2d(fd.read()))
+				fd.close()
+				sys.exit(0)
+
+
+		if len(sys.argv) == 1 or  os.path.exists(sys.argv[1]):
+				if len(sys.argv) >  1 and os.path.exists(sys.argv[1]):
+						fd = open(sys.argv[1])
+				else:
+						fd = sys.stdin
+				data = "".join(d2b(fd.read()))
+				fd.close()
+				p = Popen(brainfuck, stdout=PIPE, stdin=PIPE, stderr=STDOUT)
+				out = p.communicate(input=data)[0]
+				print(out)
+				
+
+		#brainfuck = init()
+		#print brainfuck
